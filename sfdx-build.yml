@@ -109,7 +109,7 @@ jobs:
     displayName: Delete Scratch Org
     condition: always()
 
-- job: Linux 2
+- job: Linux_2
   dependsOn: Start
   pool:
     vmImage: 'ubuntu-16.04'
