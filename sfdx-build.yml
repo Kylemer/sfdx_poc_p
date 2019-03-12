@@ -92,11 +92,20 @@ jobs:
     displayName: Confirm Test Results
 
   # Push Test Resuluts to Codecov.io 
-  - script: bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
+  - script: cp ~/tests/apex/test-result-codecoverage.json
+            bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
     # sudo sfdx force:apex:test:run -u ciorg --wait 4
     displayName: Push Test Resuluts to Codecov.io 
 
   # Push Changes to Sandbox
+
+  # Create MDAPI Package Directory
+  - script: sudo mkdir mdapi_output_dir
+    displayName: Create Package Directory
+
+  # Convert from source format to metadata format
+  - script: sudo sfdx force:source:convert -d mdapi_output_dir/ --packagename package_name
+    displayName: Convert from Source Format to Metadata Format
 
   # Confirm Package.xml
   - script: sudo ls -lR mdapi_output_dir/
