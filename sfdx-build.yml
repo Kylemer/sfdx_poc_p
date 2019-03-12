@@ -72,9 +72,25 @@ steps:
 - script: sudo sfdx force:source:push -u ciorg
   displayName: Push All Metadata to Scratch Org
 
+# Create folder to store APEX test results
+- script: sudo mkdir ~/tests
+          sudo mkdir ~/tests/apex
+  displayName: Create folder to store test results
+      
 # Run Apex tests
-- script: sudo sfdx force:apex:test:run -u ciorg --wait 4
+- script: sudo force:apex:test:run -u ciorg -c -r human -d ~/tests/apex -w 9999 
+  # sudo sfdx force:apex:test:run -u ciorg --wait 4
   displayName: Run Apex Tests
+
+# Confirm Apex test reults were storied in directory location
+- script: sudo ls -lR /tests/apex
+  displayName: Confirm Test Results
+
+# Push Test Resuluts to Codecov.io 
+- script: sudo cp ~/tests/apex/test-result-codecoverage.json .
+          sudo bash <(curl -s https://codecov.io/bash)
+  # sudo sfdx force:apex:test:run -u ciorg --wait 4
+  displayName: Push Test Resuluts to Codecov.io 
 
 # Push Changes to Sandbox
 
