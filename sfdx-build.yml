@@ -92,7 +92,7 @@ jobs:
     displayName: Confirm Test Results
 
   # Push Test Resuluts to Codecov.io 
-  - script: sudo bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
+  - script: bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
     # sudo sfdx force:apex:test:run -u ciorg --wait 4
     displayName: Push Test Resuluts to Codecov.io 
 
