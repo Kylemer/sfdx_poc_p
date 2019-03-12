@@ -6,133 +6,128 @@ variables:
 
 jobs:
 
-- job: start
+- job: Start
   pool:
     vmImage: 'ubuntu-16.04'
+  steps:
+  - script: echo hello from Start Job
+    displayName: Start
 
 - job: Linux
   pool:
     vmImage: 'ubuntu-16.04'
+  steps:
+  - script: echo echo hello from Linux Job
+    displayName: Linux
 
-steps:
+  # Disable auto-update
 
-- script: echo "Job 1"
-  displayName: Running Job 1
+  - script: export SFDX_AUTOUPDATE_DISABLE=true
+    displayName: Disable Auto-Update
 
-# Disable auto-update
+  # Install Salesforce DX CLI
 
-- script: export SFDX_AUTOUPDATE_DISABLE=true
-  displayName: Disable Auto-Update
+  - script: wget https://developer.salesforce.com/media/salesforce-cli/sfdx-linux-amd64.tar.xz
+    displayName: Download CLI
 
-# Install Salesforce DX CLI
+  # Create an sfdx directory
 
-- script: wget https://developer.salesforce.com/media/salesforce-cli/sfdx-linux-amd64.tar.xz
-  displayName: Download CLI
+  - script: mkdir sfdx
+    displayName: Create SFDX Directory
 
-# Create an sfdx directory
+  # unpack contents of CLI tar file
 
-- script: mkdir sfdx
-  displayName: Create SFDX Directory
+  - script: sudo tar xJf sfdx-linux-amd64.tar.xz -C sfdx --strip-components 1
+    displayName: Unpack CLI Tar File
 
-# unpack contents of CLI tar file
+  # Run on install CLI
 
-- script: sudo tar xJf sfdx-linux-amd64.tar.xz -C sfdx --strip-components 1
-  displayName: Unpack CLI Tar File
+  - script: sudo ./sfdx/install
+    displayName: Install CLI
 
-# Run on install CLI
+  # Install core sfdx plugins
 
-- script: sudo ./sfdx/install
-  displayName: Install CLI
+  - script: sudo sfdx plugins --core
+    displayName: Install Core SFDX Plugins
 
-# Install core sfdx plugins
+  # Download Secure Key File
+  # Download secure key file to a temporary location on the build agent
+  - task: DownloadSecureFile@1
+    inputs:
+      secureFile: server.key
 
-- script: sudo sfdx plugins --core
-  displayName: Install Core SFDX Plugins
+  # authenticate to DevHug Org
 
-# Download Secure Key File
-# Download secure key file to a temporary location on the build agent
-- task: DownloadSecureFile@1
-  inputs:
-    secureFile: server.key
+  - script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY) --jwtkeyfile $(Agent.TempDirectory)/server.key --username $(HUB_USERNAME) --setdefaultdevhubusername -a HubOrg
+    displayName: Authenticate to DevHub Org
 
-# authenticate to DevHug Org
+  # Create the Scratch Org
+  - script: sudo sfdx force:org:create -v HubOrg -s -f config/project-scratch-def.json -a ciorg --wait 4
+    displayName: Create Scratch Org
 
-- script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY) --jwtkeyfile $(Agent.TempDirectory)/server.key --username $(HUB_USERNAME) --setdefaultdevhubusername -a HubOrg
-  displayName: Authenticate to DevHub Org
+  # Display the org details
+  - script: sudo sfdx force:org:display -u ciorg
+    displayName: Display Scratch Org Details
 
-# Create the Scratch Org
-- script: sudo sfdx force:org:create -v HubOrg -s -f config/project-scratch-def.json -a ciorg --wait 4
-  displayName: Create Scratch Org
+  # Push the branch to the org
+  - script: sudo sfdx force:source:push -u ciorg
+    displayName: Push All Metadata to Scratch Org
 
-# Display the org details
-- script: sudo sfdx force:org:display -u ciorg
-  displayName: Display Scratch Org Details
+  # Run Apex tests
+  - script: sudo sfdx force:apex:test:run -u ciorg --wait 4
+    displayName: Run Apex Tests
 
-# Push the branch to the org
-- script: sudo sfdx force:source:push -u ciorg
-  displayName: Push All Metadata to Scratch Org
+  # Create folder to store APEX test results
+  - script: sudo mkdir ~/tests
+            sudo mkdir ~/tests/apex
+    displayName: Create folder to store test results
+        
+  # Run Apex tests
+  - script: sudo force:apex:test:run -u ciorg -c -r human -d ~/tests/apex -w 9999 
+    # sudo sfdx force:apex:test:run -u ciorg --wait 4
+    displayName: Run Apex Tests
 
-# Create folder to store APEX test results
-- script: sudo mkdir ~/tests
-          sudo mkdir ~/tests/apex
-  displayName: Create folder to store test results
-      
-# Run Apex tests
-- script: sudo force:apex:test:run -u ciorg -c -r human -d ~/tests/apex -w 9999 
-  # sudo sfdx force:apex:test:run -u ciorg --wait 4
-  displayName: Run Apex Tests
+  # Confirm Apex test reults were storied in directory location
+  - script: sudo ls -lR /tests/apex
+    displayName: Confirm Test Results
 
-# Confirm Apex test reults were storied in directory location
-- script: sudo ls -lR /tests/apex
-  displayName: Confirm Test Results
+  # Push Test Resuluts to Codecov.io 
+  - script: sudo cp ~/tests/apex/test-result-codecoverage.json .
+            sudo bash <(curl -s https://codecov.io/bash)
+    # sudo sfdx force:apex:test:run -u ciorg --wait 4
+    displayName: Push Test Resuluts to Codecov.io 
 
-# Push Test Resuluts to Codecov.io 
-- script: sudo cp ~/tests/apex/test-result-codecoverage.json .
-          sudo bash <(curl -s https://codecov.io/bash)
-  # sudo sfdx force:apex:test:run -u ciorg --wait 4
-  displayName: Push Test Resuluts to Codecov.io 
+  # Push Changes to Sandbox
 
-# Push Changes to Sandbox
+  # Confirm Package.xml
+  - script: sudo ls -lR mdapi_output_dir/
+    displayName: Confirm Package XML
 
-# Create MDAPI Package Directory
-- script: sudo mkdir mdapi_output_dir
-  displayName: Create Package Directory
+  # Get Store File
+  - task: DownloadSecureFile@1
+    inputs:
+      secureFile: serverADG.key
 
-# Convert from source format to metadata format
-- script: sudo sfdx force:source:convert -d mdapi_output_dir/ --packagename package_name
-  displayName: Convert from Source Format to Metadata Format
+  # Authenticate to ADG
+  - script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY_ADG) --jwtkeyfile $(Agent.TempDirectory)/serverADG.key --username $(ADG_USERNAME) -a ADG -r https://test.salesforce.com
+    displayName: Authenticate to Staging Sandbox with JWT grant
 
-# Confirm Package.xml
-- script: sudo ls -lR mdapi_output_dir/
-  displayName: Confirm Package XML
+  # Deploy to the Sandbox
+  - script: sudo sfdx force:mdapi:deploy -d mdapi_output_dir/ -u "ADG"
+    displayName: Deploy MetaData to Staging Sandbox
 
-# Get Store File
-- task: DownloadSecureFile@1
-  inputs:
-    secureFile: serverADG.key
+  # Delete the scratch org
+  - script: sudo sfdx force:org:delete -u ciorg -p
+    displayName: Delete Scratch Org
+    condition: always()
 
-# Authenticate to ADG
-- script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY_ADG) --jwtkeyfile $(Agent.TempDirectory)/serverADG.key --username $(ADG_USERNAME) -a ADG -r https://test.salesforce.com
-  displayName: Authenticate to Staging Sandbox with JWT grant
-
-# Deploy to the Sandbox
-- script: sudo sfdx force:mdapi:deploy -d mdapi_output_dir/ -u "ADG"
-  displayName: Deploy MetaData to Staging Sandbox
-
-# Delete the scratch org
-- script: sudo sfdx force:org:delete -u ciorg -p
-  displayName: Delete Scratch Org
-  condition: always()
-
-- job: Linux2
-  dependsOn: start
+- job: Linux_2
+  dependsOn: Start
   pool:
     vmImage: 'ubuntu-16.04'
-
-steps:
-
-- script: echo "Job 2"
-  displayName: Running Job 2
+  steps:
+  - script: echo hello from Linux 2 Job
+    displayName: Linux 2
 
 #  condition: failed() # Placeholder for when we want something to run on Failure
 
