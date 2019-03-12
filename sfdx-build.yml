@@ -73,10 +73,6 @@ jobs:
   - script: sudo sfdx force:source:push -u ciorg
     displayName: Push All Metadata to Scratch Org
 
-  # Run Apex tests
-  - script: sudo sfdx force:apex:test:run -u ciorg --wait 4
-    displayName: Run Apex Tests
-
   # Create folder to store APEX test results
   - script: sudo mkdir ~/tests
             sudo mkdir ~/tests/apex
@@ -91,9 +87,12 @@ jobs:
   - script: sudo ls -lR ~/tests/apex
     displayName: Confirm Test Results
 
-  # Push Test Resuluts to Codecov.io 
+  # Copy test-result-codecoverage.json test result file
   - script: sudo cp ~/tests/apex/test-result-codecoverage.json .
-            bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
+    displayName: Copy test-result-codecoverage.json test result file 
+
+  # Push Test Resuluts to Codecov.io 
+  - script: bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
     # sudo sfdx force:apex:test:run -u ciorg --wait 4
     displayName: Push Test Resuluts to Codecov.io 
 
