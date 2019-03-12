@@ -1,0 +1,123 @@
+trigger:
+- Development
+
+variables:
+- group: SFDX-Environment-Variables
+
+jobs:
+
+- job: start
+  pool:
+    vmImage: 'ubuntu-16.04'
+
+- job: Linux
+  pool:
+    vmImage: 'ubuntu-16.04'
+
+steps:
+
+- script: echo "Job 1"
+  displayName: Running Job 1
+
+# Disable auto-update
+
+- script: export SFDX_AUTOUPDATE_DISABLE=true
+  displayName: Disable Auto-Update
+
+# Install Salesforce DX CLI
+
+- script: wget https://developer.salesforce.com/media/salesforce-cli/sfdx-linux-amd64.tar.xz
+  displayName: Download CLI
+
+# Create an sfdx directory
+
+- script: mkdir sfdx
+  displayName: Create SFDX Directory
+
+# unpack contents of CLI tar file
+
+- script: sudo tar xJf sfdx-linux-amd64.tar.xz -C sfdx --strip-components 1
+  displayName: Unpack CLI Tar File
+
+# Run on install CLI
+
+- script: sudo ./sfdx/install
+  displayName: Install CLI
+
+# Install core sfdx plugins
+
+- script: sudo sfdx plugins --core
+  displayName: Install Core SFDX Plugins
+
+# Download Secure Key File
+# Download secure key file to a temporary location on the build agent
+- task: DownloadSecureFile@1
+  inputs:
+    secureFile: server.key
+
+# authenticate to DevHug Org
+
+- script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY) --jwtkeyfile $(Agent.TempDirectory)/server.key --username $(HUB_USERNAME) --setdefaultdevhubusername -a HubOrg
+  displayName: Authenticate to DevHub Org
+
+# Create the Scratch Org
+- script: sudo sfdx force:org:create -v HubOrg -s -f config/project-scratch-def.json -a ciorg --wait 4
+  displayName: Create Scratch Org
+
+# Display the org details
+- script: sudo sfdx force:org:display -u ciorg
+  displayName: Display Scratch Org Details
+
+# Push the branch to the org
+- script: sudo sfdx force:source:push -u ciorg
+  displayName: Push All Metadata to Scratch Org
+
+# Run Apex tests
+- script: sudo sfdx force:apex:test:run -u ciorg --wait 4
+  displayName: Run Apex Tests
+
+# Push Changes to Sandbox
+
+# Create MDAPI Package Directory
+- script: sudo mkdir mdapi_output_dir
+  displayName: Create Package Directory
+
+# Convert from source format to metadata format
+- script: sudo sfdx force:source:convert -d mdapi_output_dir/ --packagename package_name
+  displayName: Convert from Source Format to Metadata Format
+
+# Confirm Package.xml
+- script: sudo ls -lR mdapi_output_dir/
+  displayName: Confirm Package XML
+
+# Get Store File
+- task: DownloadSecureFile@1
+  inputs:
+    secureFile: serverADG.key
+
+# Authenticate to ADG
+- script: sudo sfdx force:auth:jwt:grant --clientid $(CONSUMER_KEY_ADG) --jwtkeyfile $(Agent.TempDirectory)/serverADG.key --username $(ADG_USERNAME) -a ADG -r https://test.salesforce.com
+  displayName: Authenticate to Staging Sandbox with JWT grant
+
+# Deploy to the Sandbox
+- script: sudo sfdx force:mdapi:deploy -d mdapi_output_dir/ -u "ADG"
+  displayName: Deploy MetaData to Staging Sandbox
+
+# Delete the scratch org
+- script: sudo sfdx force:org:delete -u ciorg -p
+  displayName: Delete Scratch Org
+  condition: always()
+
+- job: Linux2
+  dependsOn: start
+  pool:
+    vmImage: 'ubuntu-16.04'
+
+steps:
+
+- script: echo "Job 2"
+  displayName: Running Job 2
+
+#  condition: failed() # Placeholder for when we want something to run on Failure
+
+
