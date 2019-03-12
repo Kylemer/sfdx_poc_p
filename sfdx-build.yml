@@ -83,7 +83,7 @@ jobs:
     displayName: Create folder to store test results
         
   # Run Apex tests
-  - script: sudo force:apex:test:run -u ciorg -c -r human -d ~/tests/apex -w 9999 
+  - script: sudo sfdx force:apex:test:run -u ciorg -c -r human -d ~/tests/apex -w 9999 
     # sudo sfdx force:apex:test:run -u ciorg --wait 4
     displayName: Run Apex Tests
 
