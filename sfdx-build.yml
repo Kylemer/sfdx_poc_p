@@ -88,12 +88,11 @@ jobs:
     displayName: Run Apex Tests
 
   # Confirm Apex test reults were storied in directory location
-  - script: sudo ls -lR /tests/apex
+  - script: sudo ls -lR ~/tests/apex
     displayName: Confirm Test Results
 
   # Push Test Resuluts to Codecov.io 
-  - script: sudo cp ~/tests/apex/test-result-codecoverage.json .
-            sudo bash <(curl -s https://codecov.io/bash)
+  - script: sudo bash <(curl -s https://codecov.io/bash) -t $(CODECOV_TOKEN)
     # sudo sfdx force:apex:test:run -u ciorg --wait 4
     displayName: Push Test Resuluts to Codecov.io 
 
